@@ -625,7 +625,7 @@ function SiparisTakip({ siparisId, masaNo, lang, t, onYeniSiparis, restoranAd, r
   siparisId: string | null;
   masaNo: string;
   lang: string;
-  t: (tr: string, en: string) => string;
+  t: (tr: string, en: string, ar: string) => string;
   onYeniSiparis: () => void;
   restoranAd: string;
   restoranId: string;
@@ -682,9 +682,9 @@ function SiparisTakip({ siparisId, masaNo, lang, t, onYeniSiparis, restoranAd, r
   };
 
   const adimlar = [
-    { key: 'bekleniyor', label: t('Sipariş Alındı', 'Order Received'), emoji: '📋', aciklama: t('Siparişiniz restoran tarafından görüldü', 'Order seen by restaurant') },
-    { key: 'hazirlaniyor', label: t('Hazırlanıyor', 'Preparing'), emoji: '👨‍🍳', aciklama: t('Siparişiniz mutfakta hazırlanıyor', 'Order is being prepared in the kitchen') },
-    { key: 'tamamlandi', label: t('Hazır!', 'Ready!'), emoji: '✅', aciklama: t('Siparişiniz masanıza geliyor', 'Order is coming to your table') },
+    { key: 'bekleniyor', label: t('Sipariş Alındı', 'Order Received', 'تم استلام الطلب'), emoji: '📋', aciklama: t('Siparişiniz restoran tarafından görüldü', 'Order seen by restaurant', 'تم استلام الطلب من قبل المطعم') },
+    { key: 'hazirlaniyor', label: t('Hazırlanıyor', 'Preparing', 'قيد التحضير'), emoji: '👨‍🍳', aciklama: t('Siparişiniz mutfakta hazırlanıyor', 'Order is being prepared in the kitchen', 'يتم تحضير طلبك في المطبخ') },
+    { key: 'tamamlandi', label: t('Hazır!', 'Ready!', 'جاهز!'), emoji: '✅', aciklama: t('Siparişiniz masanıza geliyor', 'Order is coming to your table', 'طلبك في الطريق إلى طاولتك') },
   ];
 
   const aktifIndex = adimlar.findIndex((a) => a.key === durum);
@@ -698,15 +698,15 @@ function SiparisTakip({ siparisId, masaNo, lang, t, onYeniSiparis, restoranAd, r
             <span className="text-3xl">{iptal ? '❌' : adimlar[Math.min(aktifIndex, 2)]?.emoji || '📋'}</span>
           </div>
           <h1 className={`text-2xl font-bold ${th.text}`}>
-            {iptal ? t('Sipariş İptal Edildi', 'Order Cancelled') : aktifIndex >= 2 ? t('Siparişiniz Hazır! 🎉', 'Order Ready! 🎉') : t('Sipariş Takibi', 'Order Tracking')}
+            {iptal ? t('Sipariş İptal Edildi', 'Order Cancelled', 'تم إلغاء الطلب') : aktifIndex >= 2 ? t('Siparişiniz Hazır! 🎉', 'Order Ready! 🎉', 'طلبك جاهز! 🎉') : t('Sipariş Takibi', 'Order Tracking', 'تتبع الطلب')}
           </h1>
-          <p className={`mt-1 text-sm ${th.textMuted}`}>{restoranAd} · {t('Masa', 'Table')} {masaNo}</p>
+          <p className={`mt-1 text-sm ${th.textMuted}`}>{restoranAd} · {t('Masa', 'Table', 'طاولة')} {masaNo}</p>
         </div>
 
         {iptal ? (
-          <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-6 text-center">
-            <p className="text-red-500 font-medium">{t('Siparişiniz iptal edildi.', 'Your order was cancelled.')}</p>
-            <p className="text-xs text-red-400 mt-2">{t('Detaylı bilgi için personele danışabilirsiniz.', 'Please consult staff for details.')}</p>
+          <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-6 text-center" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+            <p className="text-red-500 font-medium">{t('Siparişiniz iptal edildi.', 'Your order was cancelled.', 'تم إلغاء طلبك.')}</p>
+            <p className="text-xs text-red-400 mt-2">{t('Detaylı bilgi için personele danışabilirsiniz.', 'Please consult staff for details.', 'يرجى استشارة الموظفين للحصول على التفاصيل.')}</p>
           </div>
         ) : (
           <div className="space-y-4">
@@ -736,7 +736,7 @@ function SiparisTakip({ siparisId, masaNo, lang, t, onYeniSiparis, restoranAd, r
                         <p className={`text-xs ${th.accentText}`}>{adim.aciklama}</p>
                       </div>
                     )}
-                    {gecti && !aktif && <p className={`text-xs ${th.textMuted} mt-0.5`}>✓ {t('Tamamlandı', 'Completed')}</p>}
+                    {gecti && !aktif && <p className={`text-xs ${th.textMuted} mt-0.5`}>✓ {t('Tamamlandı', 'Completed', 'مكتمل')}</p>}
                   </div>
                 </div>
               );
@@ -745,8 +745,8 @@ function SiparisTakip({ siparisId, masaNo, lang, t, onYeniSiparis, restoranAd, r
         )}
 
         {durum === 'tamamlandi' && !puanlandi && (
-          <div className={`mt-8 rounded-2xl border ${th.border} ${th.card} p-5`}>
-            <h3 className={`font-bold ${th.text} mb-3 text-center`}>{t('Siparişinizi Değerlendirin', 'Rate Your Order')}</h3>
+          <div className={`mt-8 rounded-2xl border ${th.border} ${th.card} p-5`} dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+            <h3 className={`font-bold ${th.text} mb-3 text-center`}>{t('Siparişinizi Değerlendirin', 'Rate Your Order', 'قيّم طلبك')}</h3>
             <div className="flex justify-center gap-2 mb-4">
               {[1, 2, 3, 4, 5].map((star) => (
                 <button key={star} onClick={() => setPuan(star)} className="focus:outline-none">
@@ -757,7 +757,7 @@ function SiparisTakip({ siparisId, masaNo, lang, t, onYeniSiparis, restoranAd, r
             <textarea
               value={yorum}
               onChange={(e) => setYorum(e.target.value)}
-              placeholder={t('Yorumunuz (isteğe bağlı)...', 'Your comment (optional)...')}
+              placeholder={t('Yorumunuz (isteğe bağlı)...', 'Your comment (optional)...', 'تعليقك (اختياري)...')}
               className={`w-full rounded-xl border ${th.border} bg-transparent px-4 py-3 text-sm ${th.text} outline-none focus:border-amber-400 focus:ring-2 resize-none mb-3`}
               rows={3}
             />
@@ -766,25 +766,25 @@ function SiparisTakip({ siparisId, masaNo, lang, t, onYeniSiparis, restoranAd, r
               disabled={puan === 0}
               className={`w-full rounded-xl ${th.accentBtn} py-3 font-bold disabled:opacity-50`}
             >
-              {t('Gönder', 'Submit')}
+              {t('Gönder', 'Submit', 'إرسال')}
             </button>
           </div>
         )}
 
         {yorumGonderildi && (
           <div className={`mt-8 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-5 text-center`}>
-            <p className="text-emerald-500 font-bold">{t('Değerlendirmeniz için teşekkürler!', 'Thank you for your rating!')}</p>
+            <p className="text-emerald-500 font-bold">{t('Değerlendirmeniz için teşekkürler!', 'Thank you for your rating!', 'شكراً لتقييمك!')}</p>
           </div>
         )}
 
-        <div className={`mt-8 rounded-2xl border ${th.border} ${th.card} p-5 flex items-center gap-4`}>
+        <div className={`mt-8 rounded-2xl border ${th.border} ${th.card} p-5 flex items-center gap-4`} dir={lang === 'ar' ? 'rtl' : 'ltr'}>
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10 shrink-0">
             <Clock className="h-5 w-5 text-blue-500" />
           </div>
           <p className={`text-xs ${th.textMuted}`}>
             {durum === 'tamamlandi'
-              ? t('Garsonumuz siparişinizi masanıza getiriyor. Afiyet olsun! 😊', 'Waiter is bringing your order. Enjoy! 😊')
-              : t('Bu sayfa otomatik güncellenir. Bekleyebilirsiniz.', 'This page updates automatically. Please wait.')}
+              ? t('Garsonumuz siparişinizi masanıza getiriyor. Afiyet olsun! 😊', 'Waiter is bringing your order. Enjoy! 😊', 'النادل يحضر طلبك إلى طاولتك. بالعافية! 😊')
+              : t('Bu sayfa otomatik güncellenir. Bekleyebilirsiniz.', 'This page updates automatically. Please wait.', 'يتم تحديث هذه الصفحة تلقائياً. يرجى الانتظار.')}
           </p>
         </div>
 
@@ -794,13 +794,13 @@ function SiparisTakip({ siparisId, masaNo, lang, t, onYeniSiparis, restoranAd, r
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
             </span>
-            {t('Canlı takip aktif', 'Live tracking active')}
+            {t('Canlı takip aktif', 'Live tracking active', 'التتبع المباشر نشط')}
           </div>
         )}
 
         <button onClick={onYeniSiparis}
           className={`mt-6 w-full rounded-2xl border ${th.border} ${th.card} py-3.5 text-sm font-medium ${th.text} hover:bg-black/5 transition-all`}>
-          {t('Yeni Sipariş Ver', 'Place New Order')}
+          {t('Yeni Sipariş Ver', 'Place New Order', 'طلب جديد')}
         </button>
       </div>
     </div>
