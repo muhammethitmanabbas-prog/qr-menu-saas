@@ -24,9 +24,11 @@ interface Urun {
   id: string;
   ad: string;
   ad_en?: string | null;
+  ad_ar?: string | null;
   fiyat: number;
   aciklama: string | null;
   aciklama_en?: string | null;
+  aciklama_ar?: string | null;
   resim_url: string | null;
   kategori_id: string;
   stok?: number | null;
@@ -36,6 +38,7 @@ interface Kategori {
   id: string;
   ad: string;
   ad_en?: string | null;
+  ad_ar?: string | null;
 }
 
 interface SepetItem extends Urun {
@@ -61,9 +64,21 @@ export default function MusteriMenuPage({ params }: { params: Promise<{ slug: st
   const [yukleniyor, setYukleniyor] = useState(true);
   const [siparisHata, setSiparisHata] = useState('');
 
-  const [lang, setLang] = useState<'tr' | 'en'>('tr');
+  const [lang, setLang] = useState<'tr' | 'en' | 'ar'>('tr');
   const [waiterCooldown, setWaiterCooldown] = useState(false);
   const [waiterMessage, setWaiterMessage] = useState('');
+
+  const [pinModalAcik, setPinModalAcik] = useState(false);
+  const [girilenPin, setGirilenPin] = useState('');
+  const [hedefIslem, setHedefIslem] = useState<'siparis' | 'garson' | null>(null);
+
+  useEffect(() => {
+    if (typeof navigator !== 'undefined') {
+      const l = navigator.language.toLowerCase();
+      if (l.startsWith('ar')) setLang('ar');
+      else if (l.startsWith('en')) setLang('en');
+    }
+  }, []);
 
   useEffect(() => {
     const fetchMenu = async () => {
@@ -108,19 +123,28 @@ export default function MusteriMenuPage({ params }: { params: Promise<{ slug: st
     fetchMenu();
   }, [slug]);
 
-  const t = (tr: string, en: string) => lang === 'tr' ? tr : en;
+  const t = (tr: string, en: string, ar: string) => lang === 'ar' ? ar : lang === 'en' ? en : tr;
 
   const garsonCagir = async () => {
     if (waiterCooldown) return;
     
     let currentMasa = masaNo.trim();
     if (!currentMasa) {
-      const input = window.prompt(t('Lütfen masa numaranızı girin:', 'Please enter your table number:'));
+      const input = window.prompt(t('Lütfen masa numaranızı girin:', 'Please enter your table number:', 'يرجى إدخال رقم الطاولة:'));
       if (!input || !input.trim()) return;
       currentMasa = input.trim();
       setMasaNo(currentMasa); // Sepet için de kaydet
     }
 
+    if (restoran?.siparis_pin) {
+      setHedefIslem('garson');
+      setPinModalAcik(true);
+      return;
+    }
+    await gercekGarsonCagir(currentMasa);
+  };
+
+  const gercekGarsonCagir = async (currentMasa: string) => {
     try {
       setWaiterCooldown(true);
       await supabase.from('garson_cagri').insert({
@@ -128,7 +152,7 @@ export default function MusteriMenuPage({ params }: { params: Promise<{ slug: st
         masa_no: currentMasa,
         durum: 'bekliyor'
       });
-      setWaiterMessage(t('Garsonunuz çağrıldı!', 'Waiter called!'));
+      setWaiterMessage(t('Garsonunuz çağrıldı!', 'Waiter called!', 'تم استدعاء النادل!'));
       setTimeout(() => setWaiterMessage(''), 3000);
       
       setTimeout(() => {
@@ -164,11 +188,20 @@ export default function MusteriMenuPage({ params }: { params: Promise<{ slug: st
 
   const siparisVer = async () => {
     if (!masaNo.trim()) {
-      setSiparisHata(t('Lütfen masa numaranızı girin!', 'Please enter your table number!'));
+      setSiparisHata(t('Lütfen masa numaranızı girin!', 'Please enter your table number!', 'يرجى إدخال رقم الطاولة!'));
       return;
     }
     if (sepet.length === 0) return;
 
+    if (restoran?.siparis_pin) {
+      setHedefIslem('siparis');
+      setPinModalAcik(true);
+      return;
+    }
+    await gercekSiparisVer();
+  };
+
+  const gercekSiparisVer = async () => {
     setSiparisHata('');
     setSiparisDurumu('gonderiliyor');
 
@@ -202,9 +235,21 @@ export default function MusteriMenuPage({ params }: { params: Promise<{ slug: st
       setSayfa('onay');
     } catch (err: any) {
       setSiparisDurumu(null);
-      setSiparisHata(err.message || t('Sipariş gönderilemedi, tekrar deneyin.', 'Failed to send order, try again.'));
+      setSiparisHata(err.message || t('Sipariş gönderilemedi, tekrar deneyin.', 'Failed to send order, try again.', 'فشل إرسال الطلب، حاول مرة أخرى.'));
     }
   };
+
+  const handlePinOnayla = () => {
+    if (girilenPin !== restoran?.siparis_pin) {
+      alert(t('Hatalı PIN Kodu!', 'Invalid PIN Code!', 'الرمز السري غير صحيح!'));
+      return;
+    }
+    setPinModalAcik(false);
+    setGirilenPin('');
+    if (hedefIslem === 'siparis') gercekSiparisVer();
+    if (hedefIslem === 'garson') gercekGarsonCagir(masaNo.trim());
+  };
+
 
   const getThemeClasses = () => {
     const tema = restoran?.tema || 'dark';
@@ -266,7 +311,7 @@ export default function MusteriMenuPage({ params }: { params: Promise<{ slug: st
           <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-600">
             <Utensils className="h-8 w-8 text-white" />
           </div>
-          <p className={`text-sm animate-pulse ${th.textMuted}`}>{t('Menü yükleniyor...', 'Loading menu...')}</p>
+          <p className={`text-sm animate-pulse ${th.textMuted}`}>{t('Menü yükleniyor...', 'Loading menu...', 'جاري تحميل القائمة...')}</p>
         </div>
       </div>
     );
@@ -278,8 +323,8 @@ export default function MusteriMenuPage({ params }: { params: Promise<{ slug: st
         <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-red-500/10 mb-4">
           <X className="h-10 w-10 text-red-500" />
         </div>
-        <h1 className={`text-xl font-bold ${th.text}`}>{t('Menü Bulunamadı', 'Menu Not Found')}</h1>
-        <p className={`mt-2 text-sm ${th.textMuted}`}>{t('Bu QR koda ait bir menü mevcut değil.', 'Menu for this QR code does not exist.')}</p>
+        <h1 className={`text-xl font-bold ${th.text}`}>{t('Menü Bulunamadı', 'Menu Not Found', 'القائمة غير موجودة')}</h1>
+        <p className={`mt-2 text-sm ${th.textMuted}`}>{t('Bu QR koda ait bir menü mevcut değil.', 'Menu for this QR code does not exist.', 'لا توجد قائمة لرمز الاستجابة السريعة هذا.')}</p>
       </div>
     );
   }
@@ -299,7 +344,7 @@ export default function MusteriMenuPage({ params }: { params: Promise<{ slug: st
             <X className={`h-4 w-4 ${th.text}`} />
           </button>
           <div>
-            <h1 className={`font-bold ${th.text}`}>{t('Sepetim', 'My Cart')}</h1>
+            <h1 className={`font-bold ${th.text}`}>{t('Sepetim', 'My Cart', 'سلتي')}</h1>
             <p className={`text-xs ${th.textMuted}`}>{restoran.ad}</p>
           </div>
         </div>
@@ -311,8 +356,8 @@ export default function MusteriMenuPage({ params }: { params: Promise<{ slug: st
                 key={item.id}
                 className={`flex items-center justify-between ${th.card} border ${th.border} rounded-2xl p-4`}
               >
-                <div className="flex-1 min-w-0">
-                  <p className={`font-semibold ${th.text} truncate`}>{lang === 'en' ? (item.ad_en || item.ad) : item.ad}</p>
+                <div className="flex-1 min-w-0" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+                  <p className={`font-semibold ${th.text} truncate`}>{lang === 'ar' ? (item.ad_ar || item.ad) : lang === 'en' ? (item.ad_en || item.ad) : item.ad}</p>
                   <p className={`text-sm ${th.accentText} font-bold mt-0.5`}>
                     ₺{(item.fiyat * item.adet).toFixed(2)}
                   </p>
@@ -336,14 +381,14 @@ export default function MusteriMenuPage({ params }: { params: Promise<{ slug: st
             ))}
           </div>
 
-          <div className={`rounded-2xl border ${th.border} ${th.card} p-5 space-y-2`}>
+          <div className={`rounded-2xl border ${th.border} ${th.card} p-5 space-y-2`} dir={lang === 'ar' ? 'rtl' : 'ltr'}>
             <label className={`flex items-center gap-2 text-sm font-semibold ${th.text}`}>
               <Hash className={`h-4 w-4 ${th.accentText}`} />
-              {t('Masa Numarası', 'Table Number')} <span className="text-red-500">*</span>
+              {t('Masa Numarası', 'Table Number', 'رقم الطاولة')} <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
-              placeholder={t('Örn: 5', 'e.g. 5')}
+              placeholder={t('Örn: 5', 'e.g. 5', 'مثال: 5')}
               value={masaNo}
               onChange={(e) => { setMasaNo(e.target.value); setSiparisHata(''); }}
               className={`w-full rounded-xl border bg-transparent px-4 py-3 text-lg font-bold ${th.text} outline-none focus:ring-2 transition-all ${
@@ -353,13 +398,13 @@ export default function MusteriMenuPage({ params }: { params: Promise<{ slug: st
             {siparisHata && <p className="text-xs text-red-500">{siparisHata}</p>}
           </div>
 
-          <div className={`rounded-2xl border ${th.border} ${th.card} p-5 space-y-2`}>
+          <div className={`rounded-2xl border ${th.border} ${th.card} p-5 space-y-2`} dir={lang === 'ar' ? 'rtl' : 'ltr'}>
             <label className={`flex items-center gap-2 text-sm font-semibold ${th.text}`}>
               <StickyNote className="h-4 w-4 text-amber-500" />
-              {t('Özel İstek / Not', 'Special Request / Note')} <span className={`font-normal text-xs ${th.textMuted}`}>({t('isteğe bağlı', 'optional')})</span>
+              {t('Özel İstek / Not', 'Special Request / Note', 'طلب خاص / ملاحظة')} <span className={`font-normal text-xs ${th.textMuted}`}>({t('isteğe bağlı', 'optional', 'اختياري')})</span>
             </label>
             <textarea
-              placeholder={t('Örn: Köfte az pişmiş olsun...', 'e.g. Medium rare please...')}
+              placeholder={t('Örn: Köfte az pişmiş olsun...', 'e.g. Medium rare please...', 'مثال: بدون بصل...')}
               value={musteriNotu}
               onChange={(e) => setMusteriNotu(e.target.value)}
               rows={3}
@@ -369,8 +414,8 @@ export default function MusteriMenuPage({ params }: { params: Promise<{ slug: st
         </div>
 
         <div className={`fixed bottom-0 left-0 right-0 border-t ${th.border} ${th.navBg} backdrop-blur-xl px-4 py-4 space-y-3`}>
-          <div className={`flex items-center justify-between text-sm ${th.textMuted}`}>
-            <span>{sepetAdedToplam} {t('ürün', 'items')}</span>
+          <div className={`flex items-center justify-between text-sm ${th.textMuted}`} dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+            <span>{sepetAdedToplam} {t('ürün', 'items', 'منتج')}</span>
             <span className={`text-xl font-black ${th.text}`}>₺{sepetToplam.toFixed(2)}</span>
           </div>
           <button
@@ -381,12 +426,12 @@ export default function MusteriMenuPage({ params }: { params: Promise<{ slug: st
             {siparisDurumu === 'gonderiliyor' ? (
               <>
                 <span className="animate-spin h-5 w-5 border-2 border-white/30 border-t-white rounded-full"></span>
-                {t('Gönderiliyor...', 'Sending...')}
+                {t('Gönderiliyor...', 'Sending...', 'جاري الإرسال...')}
               </>
             ) : (
               <>
-                {t('Siparişi Onayla', 'Confirm Order')}
-                <ArrowRight className="h-5 w-5" />
+                {t('Siparişi Onayla', 'Confirm Order', 'تأكيد الطلب')}
+                <ArrowRight className={`h-5 w-5 ${lang === 'ar' ? 'rotate-180' : ''}`} />
               </>
             )}
           </button>
@@ -407,12 +452,12 @@ export default function MusteriMenuPage({ params }: { params: Promise<{ slug: st
             </div>
             <div>
               <h1 className={`text-xl font-bold ${th.text}`}>{restoran.ad}</h1>
-              <p className={`text-xs ${th.accentText}`}>{t('Dijital Menü', 'Digital Menu')}</p>
+              <p className={`text-xs ${th.accentText}`}>{t('Dijital Menü', 'Digital Menu', 'القائمة الرقمية')}</p>
             </div>
           </div>
           <div className="flex gap-2">
             <button
-              onClick={() => setLang(lang === 'tr' ? 'en' : 'tr')}
+              onClick={() => setLang(lang === 'tr' ? 'en' : lang === 'en' ? 'ar' : 'tr')}
               className={`flex h-10 px-3 items-center justify-center rounded-xl bg-black/10 hover:bg-black/20 transition-all font-bold text-sm`}
             >
               <Globe className="h-4 w-4 mr-1" />
@@ -424,7 +469,7 @@ export default function MusteriMenuPage({ params }: { params: Promise<{ slug: st
               className={`relative flex h-10 w-10 items-center justify-center rounded-xl transition-all ${
                 waiterCooldown ? 'bg-gray-500/20 text-gray-500' : 'bg-amber-500/20 text-amber-500 hover:bg-amber-500/30'
               }`}
-              title={t('Garson Çağır', 'Call Waiter')}
+              title={t('Garson Çağır', 'Call Waiter', 'استدعاء النادل')}
             >
               <Bell className="h-5 w-5" />
               {waiterMessage && (
@@ -436,6 +481,26 @@ export default function MusteriMenuPage({ params }: { params: Promise<{ slug: st
           </div>
         </div>
       </div>
+
+      {pinModalAcik && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className={`w-full max-w-sm rounded-2xl ${th.card} border ${th.border} p-6 text-center space-y-4`} dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+            <h2 className={`text-xl font-bold ${th.text}`}>{t('Güvenlik Kodu', 'Security Code', 'رمز الأمان')}</h2>
+            <p className={`text-sm ${th.textMuted}`}>{t('İşlemi onaylamak için restorandaki PIN kodunu girin.', 'Enter the restaurant PIN code to confirm the action.', 'أدخل رمز المطعم السري لتأكيد العملية.')}</p>
+            <input type="text" maxLength={4} placeholder="----" autoFocus
+              value={girilenPin} onChange={(e) => setGirilenPin(e.target.value.replace(/[^0-9]/g, ''))}
+              className={`w-full text-center tracking-[0.5em] text-2xl font-black rounded-xl border ${th.border} bg-transparent px-4 py-3 outline-none focus:border-emerald-400`} />
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => setPinModalAcik(false)} className={`flex-1 rounded-xl py-3 font-semibold ${th.textMuted} bg-black/10 hover:bg-black/20`}>
+                {t('İptal', 'Cancel', 'إلغاء')}
+              </button>
+              <button onClick={handlePinOnayla} className={`flex-1 rounded-xl py-3 font-semibold ${th.accentBtn} hover:brightness-110`}>
+                {t('Onayla', 'Confirm', 'تأكيد')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {kategoriler.length > 0 && (
         <div className={`sticky top-0 z-10 ${th.navBg} backdrop-blur-xl border-b ${th.border}`}>
@@ -450,7 +515,7 @@ export default function MusteriMenuPage({ params }: { params: Promise<{ slug: st
                     : `bg-black/5 ${th.textMuted} hover:bg-black/10 hover:${th.text}`
                 }`}
               >
-                {lang === 'en' ? (kat.ad_en || kat.ad) : kat.ad}
+                {lang === 'ar' ? (kat.ad_ar || kat.ad) : lang === 'en' ? (kat.ad_en || kat.ad) : kat.ad}
               </button>
             ))}
           </div>
@@ -461,7 +526,7 @@ export default function MusteriMenuPage({ params }: { params: Promise<{ slug: st
         {aktifKatUrunler.length === 0 ? (
           <div className="py-16 text-center">
             <ChefHat className={`mx-auto h-12 w-12 ${th.textMuted}`} />
-            <p className={`mt-3 ${th.textMuted}`}>{t('Bu kategoride ürün bulunmuyor.', 'No items in this category.')}</p>
+            <p className={`mt-3 ${th.textMuted}`}>{t('Bu kategoride ürün bulunmuyor.', 'No items in this category.', 'لا توجد منتجات في هذه الفئة.')}</p>
           </div>
         ) : (
           aktifKatUrunler.map((urun) => {
@@ -484,18 +549,18 @@ export default function MusteriMenuPage({ params }: { params: Promise<{ slug: st
                   </div>
                 )}
 
-                <div className="flex-1 min-w-0">
+                <div className="flex-1 min-w-0" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
                   <h3 className={`font-bold ${th.text} text-base flex items-center gap-2`}>
-                    {lang === 'en' ? (urun.ad_en || urun.ad) : urun.ad}
+                    {lang === 'ar' ? (urun.ad_ar || urun.ad) : lang === 'en' ? (urun.ad_en || urun.ad) : urun.ad}
                     {tukendi && (
                       <span className="text-[10px] bg-red-500 text-white px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
-                        {t('Tükendi', 'Sold Out')}
+                        {t('Tükendi', 'Sold Out', 'نفد')}
                       </span>
                     )}
                   </h3>
-                  {(urun.aciklama || urun.aciklama_en) && (
+                  {(urun.aciklama || urun.aciklama_en || urun.aciklama_ar) && (
                     <p className={`text-xs ${th.textMuted} mt-0.5 line-clamp-2`}>
-                      {lang === 'en' ? (urun.aciklama_en || urun.aciklama) : urun.aciklama}
+                      {lang === 'ar' ? (urun.aciklama_ar || urun.aciklama) : lang === 'en' ? (urun.aciklama_en || urun.aciklama) : urun.aciklama}
                     </p>
                   )}
                   <p className={`text-lg font-black ${th.accentText} mt-1`}>₺{Number(urun.fiyat).toFixed(2)}</p>

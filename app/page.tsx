@@ -15,9 +15,9 @@ type Tab = 'dashboard' | 'ayarlar' | 'kategoriler' | 'urunler' | 'siparisler' | 
 type Role = 'owner' | 'admin' | 'mudur' | 'kasa' | 'personel';
 type Notification = { type: 'success' | 'error'; text: string } | null;
 
-interface Restoran { id: string; user_id: string; ad: string; slug: string; logo_url?: string | null; tema?: string }
-interface Kategori { id: string; restoran_id: string; ad: string }
-interface Urun { id: string; kategori_id: string; ad: string; fiyat: number; aciklama: string | null; resim_url: string | null; stok?: number | null; ad_en?: string | null; aciklama_en?: string | null }
+interface Restoran { id: string; user_id: string; ad: string; slug: string; logo_url?: string | null; tema?: string; siparis_pin?: string | null }
+interface Kategori { id: string; restoran_id: string; ad: string; ad_ar?: string | null }
+interface Urun { id: string; kategori_id: string; ad: string; fiyat: number; aciklama: string | null; resim_url: string | null; stok?: number | null; ad_en?: string | null; aciklama_en?: string | null; ad_ar?: string | null; aciklama_ar?: string | null }
 interface Personel { id: string; user_id: string; restoran_id: string; rol: string; ad?: string; email?: string }
 
 // ─── TAB CONFIG ─────────────────────────────────────────────────────────────
@@ -103,18 +103,20 @@ export default function App() {
   const [restoranAdi, setRestoranAdi] = useState('');
   const [restoranSlug, setRestoranSlug] = useState('');
   const [seciliTema, setSeciliTema] = useState<string>('dark');
+  const [siparisPin, setSiparisPin] = useState('');
   const [savingRestoran, setSavingRestoran] = useState(false);
   const [sesAcik, setSesAcik] = useState(true);
 
   // Kategori state
   const [kategoriler, setKategoriler] = useState<Kategori[]>([]);
   const [yeniKategoriAdi, setYeniKategoriAdi] = useState('');
+  const [yeniKategoriAdiAr, setYeniKategoriAdiAr] = useState('');
   const [kategoriEkleniyor, setKategoriEkleniyor] = useState(false);
 
   // Ürün state
   const [urunler, setUrunler] = useState<Urun[]>([]);
   const [seciliKategoriId, setSeciliKategoriId] = useState('');
-  const [yeniUrun, setYeniUrun] = useState({ ad: '', fiyat: '', aciklama: '', resim_url: '', stok: '', ad_en: '', aciklama_en: '' });
+  const [yeniUrun, setYeniUrun] = useState({ ad: '', fiyat: '', aciklama: '', resim_url: '', stok: '', ad_en: '', aciklama_en: '', ad_ar: '', aciklama_ar: '' });
   const [urunEkleniyor, setUrunEkleniyor] = useState(false);
 
   // Personel state
@@ -188,6 +190,7 @@ export default function App() {
         setRestoranAdi(r.ad);
         setRestoranSlug(r.slug);
         setSeciliTema(r.tema || 'dark');
+        setSiparisPin(r.siparis_pin || '');
 
         const { data: katData } = await supabase.from('kategoriler').select('*').eq('restoran_id', r.id).order('ad');
         if (katData) {
@@ -244,12 +247,12 @@ export default function App() {
     setSavingRestoran(true);
     try {
       if (restoran) {
-        const { error } = await supabase.from('restoranlar').update({ ad: restoranAdi, slug: restoranSlug, tema: seciliTema }).eq('id', restoran.id);
+        const { error } = await supabase.from('restoranlar').update({ ad: restoranAdi, slug: restoranSlug, tema: seciliTema, siparis_pin: siparisPin || null }).eq('id', restoran.id);
         if (error) throw error;
-        setRestoran({ ...restoran, ad: restoranAdi, slug: restoranSlug, tema: seciliTema });
+        setRestoran({ ...restoran, ad: restoranAdi, slug: restoranSlug, tema: seciliTema, siparis_pin: siparisPin || null });
         showNotification('success', 'Restoran bilgileri güncellendi.');
       } else {
-        const { data, error } = await supabase.from('restoranlar').insert({ user_id: userId, ad: restoranAdi, slug: restoranSlug, tema: seciliTema }).select().single();
+        const { data, error } = await supabase.from('restoranlar').insert({ user_id: userId, ad: restoranAdi, slug: restoranSlug, tema: seciliTema, siparis_pin: siparisPin || null }).select().single();
         if (error) throw error;
         setRestoran(data as Restoran);
         showNotification('success', 'Restoran oluşturuldu.');
@@ -263,10 +266,11 @@ export default function App() {
     if (!restoran || !yeniKategoriAdi.trim()) return;
     setKategoriEkleniyor(true);
     try {
-      const { data, error } = await supabase.from('kategoriler').insert({ restoran_id: restoran.id, ad: yeniKategoriAdi.trim() }).select().single();
+      const { data, error } = await supabase.from('kategoriler').insert({ restoran_id: restoran.id, ad: yeniKategoriAdi.trim(), ad_ar: yeniKategoriAdiAr.trim() || null }).select().single();
       if (error) throw error;
       setKategoriler((prev) => [...prev, data as Kategori]);
       setYeniKategoriAdi('');
+      setYeniKategoriAdiAr('');
       showNotification('success', 'Kategori eklendi.');
     } catch (err: any) { showNotification('error', err.message); }
     finally { setKategoriEkleniyor(false); }
@@ -297,10 +301,12 @@ export default function App() {
         stok: yeniUrun.stok ? parseInt(yeniUrun.stok) : null,
         ad_en: yeniUrun.ad_en.trim() || null,
         aciklama_en: yeniUrun.aciklama_en.trim() || null,
+        ad_ar: yeniUrun.ad_ar.trim() || null,
+        aciklama_ar: yeniUrun.aciklama_ar.trim() || null,
       }).select().single();
       if (error) throw error;
       setUrunler((prev) => [...prev, data as Urun]);
-      setYeniUrun({ ad: '', fiyat: '', aciklama: '', resim_url: '', stok: '', ad_en: '', aciklama_en: '' });
+      setYeniUrun({ ad: '', fiyat: '', aciklama: '', resim_url: '', stok: '', ad_en: '', aciklama_en: '', ad_ar: '', aciklama_ar: '' });
       showNotification('success', 'Ürün eklendi.');
     } catch (err: any) { showNotification('error', err.message); }
     finally { setUrunEkleniyor(false); }
@@ -506,6 +512,11 @@ export default function App() {
                     {restoranSlug && <p className="mt-1.5 text-xs text-neutral-500">QR URL: <span className="text-emerald-400 font-mono">{typeof window !== 'undefined' ? window.location.origin : ''}/menu/{restoranSlug}</span></p>}
                   </div>
                   <div>
+                    <label className="mb-1.5 block text-sm font-medium text-neutral-300">Sipariş PIN Kodu <span className="text-neutral-500 text-xs">(Müşteri siparişi onaylamak için bu kodu girmelidir)</span></label>
+                    <input type="text" maxLength={4} value={siparisPin} onChange={(e) => setSiparisPin(e.target.value)}
+                      placeholder="Boş bırakırsanız PIN sorulmaz (Örn: 1453)" className="w-full rounded-xl border border-white/10 bg-neutral-950 px-4 py-3 text-sm text-white placeholder-neutral-600 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20" />
+                  </div>
+                  <div>
                     <label className="mb-1.5 block text-sm font-medium text-neutral-300">Müşteri Menüsü Teması</label>
                     <div className="grid grid-cols-2 gap-3">
                       {[
@@ -537,9 +548,11 @@ export default function App() {
                 <h1 className="text-2xl font-bold text-white">Kategoriler</h1>
                 <p className="mt-1 text-sm text-neutral-400">Menü kategorilerini yönetin.</p>
                 {!restoran && <div className="mt-6 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 flex items-center gap-3"><AlertCircle className="h-5 w-5 text-amber-400 shrink-0" /><p className="text-sm text-amber-200">Önce Ayarlar bölümünden restoranınızı kaydedin.</p></div>}
-                <form onSubmit={handleKategoriEkle} className="mt-6 flex gap-3 rounded-2xl border border-white/10 bg-white/5 p-4">
+                <form onSubmit={handleKategoriEkle} className="mt-6 flex flex-col sm:flex-row gap-3 rounded-2xl border border-white/10 bg-white/5 p-4">
                   <input type="text" value={yeniKategoriAdi} onChange={(e) => setYeniKategoriAdi(e.target.value)} placeholder="Yeni kategori..."
                     className="flex-1 rounded-xl border border-white/10 bg-neutral-950 px-4 py-3 text-sm text-white placeholder-neutral-600 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20" />
+                  <input type="text" value={yeniKategoriAdiAr} onChange={(e) => setYeniKategoriAdiAr(e.target.value)} placeholder="Arapça isim (opsiyonel)"
+                    className="flex-1 rounded-xl border border-white/10 bg-neutral-950 px-4 py-3 text-sm text-white placeholder-neutral-600 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20" dir="auto" />
                   <button type="submit" disabled={kategoriEkleniyor || !restoran}
                     className="flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-neutral-950 hover:bg-emerald-700 disabled:opacity-50">
                     {kategoriEkleniyor ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Ekle
@@ -587,6 +600,18 @@ export default function App() {
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
+                        <label className="mb-1.5 block text-sm font-medium text-neutral-300">Arapça Ad <span className="text-neutral-600">(opsiyonel)</span></label>
+                        <input type="text" value={yeniUrun.ad_ar} onChange={(e) => setYeniUrun({ ...yeniUrun, ad_ar: e.target.value })} placeholder="الاسم بالعربية"
+                          className="w-full rounded-xl border border-white/10 bg-neutral-950 px-4 py-3 text-sm text-white placeholder-neutral-600 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20" dir="auto" />
+                      </div>
+                      <div>
+                        <label className="mb-1.5 block text-sm font-medium text-neutral-300">Stok Adedi <span className="text-neutral-600">(opsiyonel)</span></label>
+                        <input type="number" value={yeniUrun.stok} onChange={(e) => setYeniUrun({ ...yeniUrun, stok: e.target.value })} placeholder="Sınırsız"
+                          className="w-full rounded-xl border border-white/10 bg-neutral-950 px-4 py-3 text-sm text-white placeholder-neutral-600 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
                         <label className="mb-1.5 block text-sm font-medium text-neutral-300">Fiyat (₺)</label>
                         <input type="number" step="0.01" required value={yeniUrun.fiyat} onChange={(e) => setYeniUrun({ ...yeniUrun, fiyat: e.target.value })} placeholder="150"
                           className="w-full rounded-xl border border-white/10 bg-neutral-950 px-4 py-3 text-sm text-white placeholder-neutral-600 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20" />
@@ -609,10 +634,17 @@ export default function App() {
                           className="w-full rounded-xl border border-white/10 bg-neutral-950 px-4 py-3 text-sm text-white placeholder-neutral-600 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20" />
                       </div>
                     </div>
-                    <div>
-                      <label className="mb-1.5 block text-sm font-medium text-neutral-300">Görsel URL <span className="text-neutral-600">(opsiyonel)</span></label>
-                      <input type="text" value={yeniUrun.resim_url} onChange={(e) => setYeniUrun({ ...yeniUrun, resim_url: e.target.value })} placeholder="https://..."
-                        className="w-full rounded-xl border border-white/10 bg-neutral-950 px-4 py-3 text-sm text-white placeholder-neutral-600 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20" />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="mb-1.5 block text-sm font-medium text-neutral-300">Arapça Açıklama <span className="text-neutral-600">(opsiyonel)</span></label>
+                        <textarea value={yeniUrun.aciklama_ar} onChange={(e) => setYeniUrun({ ...yeniUrun, aciklama_ar: e.target.value })} placeholder="الوصف بالعربية..." rows={2}
+                          className="w-full rounded-xl border border-white/10 bg-neutral-950 px-4 py-3 text-sm text-white placeholder-neutral-600 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20" dir="auto" />
+                      </div>
+                      <div>
+                        <label className="mb-1.5 block text-sm font-medium text-neutral-300">Görsel URL <span className="text-neutral-600">(opsiyonel)</span></label>
+                        <input type="text" value={yeniUrun.resim_url} onChange={(e) => setYeniUrun({ ...yeniUrun, resim_url: e.target.value })} placeholder="https://..."
+                          className="w-full rounded-xl border border-white/10 bg-neutral-950 px-4 py-3 text-sm text-white placeholder-neutral-600 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20" />
+                      </div>
                     </div>
                     <button type="submit" disabled={urunEkleniyor}
                       className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-400 to-emerald-600 py-3 text-sm font-semibold text-neutral-950 shadow-lg shadow-emerald-500/30 hover:brightness-110 disabled:opacity-50">
