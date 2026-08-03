@@ -608,7 +608,7 @@ export default function MusteriMenuPage({ params }: { params: Promise<{ slug: st
               <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-black/20">
                 <ShoppingCart className="h-4 w-4 text-white" />
               </div>
-              <span className="font-bold text-white text-sm">{sepetAdedToplam} {t('ürün', 'items')}</span>
+              <span className="font-bold text-white text-sm">{sepetAdedToplam} {t('ürün', 'items', 'منتج')}</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="font-black text-white text-base">₺{sepetToplam.toFixed(2)}</span>
