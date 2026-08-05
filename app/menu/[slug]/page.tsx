@@ -60,7 +60,7 @@ export default function MusteriMenuPage({ params }: { params: Promise<{ slug: st
   const [sayfa, setSayfa] = useState<Sayfa>('menu');
   const [masaNo, setMasaNo] = useState(searchParams?.get('masa') || '');
   const [musteriNotu, setMusteriNotu] = useState('');
-  const [siparisDurumu, setSiparisDurumu] = useState<'gonderiliyor' | 'basarili' | null>(null);
+  const [siparisDurumu, setSiparisDurumu] = useState<'gonderiliyor' | 'basarili' | 'konum_bekleniyor' | null>(null);
   const [siparisId, setSiparisId] = useState<string | null>(null);
   const [yukleniyor, setYukleniyor] = useState(true);
   const [siparisHata, setSiparisHata] = useState('');
@@ -154,8 +154,26 @@ export default function MusteriMenuPage({ params }: { params: Promise<{ slug: st
   const checkSecurity = (islem: 'siparis' | 'garson', currentMasa?: string) => {
     if (restoran?.gps_aktif && restoran.enlem && restoran.boylam) {
       if (!navigator.geolocation) { fallbackPin(islem, currentMasa); return; }
+      
+      setSiparisDurumu('konum_bekleniyor');
+      let isResolved = false;
+
+      const fallback = () => {
+        if (isResolved) return;
+        isResolved = true;
+        setSiparisDurumu(null);
+        fallbackPin(islem, currentMasa);
+      };
+
+      const timeoutId = setTimeout(fallback, 6000); // 6 sn içinde cevap gelmezse zorla PIN'e düş
+
       navigator.geolocation.getCurrentPosition(
         (pos) => {
+          if (isResolved) return;
+          isResolved = true;
+          clearTimeout(timeoutId);
+          setSiparisDurumu(null);
+          
           const dist = haversine(pos.coords.latitude, pos.coords.longitude, restoran.enlem, restoran.boylam);
           if (dist <= (restoran.gps_yaricap || 100)) {
             if (islem === 'siparis') gercekSiparisVer();
@@ -164,7 +182,10 @@ export default function MusteriMenuPage({ params }: { params: Promise<{ slug: st
             fallbackPin(islem, currentMasa);
           }
         },
-        () => fallbackPin(islem, currentMasa),
+        () => {
+          clearTimeout(timeoutId);
+          fallback();
+        },
         { enableHighAccuracy: true, timeout: 5000 }
       );
     } else {
@@ -486,13 +507,13 @@ export default function MusteriMenuPage({ params }: { params: Promise<{ slug: st
           </div>
           <button
             onClick={siparisVer}
-            disabled={siparisDurumu === 'gonderiliyor'}
+            disabled={siparisDurumu === 'gonderiliyor' || siparisDurumu === 'konum_bekleniyor'}
             className={`w-full flex items-center justify-center gap-2 rounded-2xl ${th.accentBtn} py-4 text-base font-bold shadow-lg hover:brightness-110 disabled:opacity-60 transition-all`}
           >
-            {siparisDurumu === 'gonderiliyor' ? (
+            {siparisDurumu === 'gonderiliyor' || siparisDurumu === 'konum_bekleniyor' ? (
               <>
                 <span className="animate-spin h-5 w-5 border-2 border-white/30 border-t-white rounded-full"></span>
-                {t('Gönderiliyor...', 'Sending...', 'جاري الإرسال...')}
+                {siparisDurumu === 'konum_bekleniyor' ? t('Konum Doğrulanıyor...', 'Checking Location...', 'التحقق من الموقع...') : t('Gönderiliyor...', 'Sending...', 'جاري الإرسال...')}
               </>
             ) : (
               <>
