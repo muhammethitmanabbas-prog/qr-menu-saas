@@ -569,8 +569,13 @@ export default function App() {
                             <input type="number" step="any" value={boylam || ''} onChange={(e) => setBoylam(parseFloat(e.target.value))} className="w-full rounded-lg border border-white/10 bg-neutral-950 px-3 py-2 text-sm text-white" />
                           </div>
                           <button type="button" onClick={() => {
-                            if (!navigator.geolocation) { alert('Tarayıcınız konumu desteklemiyor.'); return; }
-                            navigator.geolocation.getCurrentPosition((pos) => { setEnlem(pos.coords.latitude); setBoylam(pos.coords.longitude); alert('Konum alındı!'); }, () => alert('Konum izni reddedildi.'));
+                            if (!navigator.geolocation) { alert('Tarayıcınız konumu desteklemiyor. Lütfen manuel giriniz.'); return; }
+                            alert('Konum tespiti başlatıldı. Lütfen tarayıcınızın üst kısmında çıkan Konum İzni isteğine izin verin (eğer çıkarsa).');
+                            navigator.geolocation.getCurrentPosition(
+                              (pos) => { setEnlem(pos.coords.latitude); setBoylam(pos.coords.longitude); alert('Konum başarıyla alındı!'); },
+                              (err) => { alert('Konum alınamadı: ' + err.message + ' (Lütfen tarayıcınızın konum izinlerini kontrol edin)'); },
+                              { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+                            );
                           }} className="rounded-lg bg-blue-600/20 border border-blue-500/30 px-4 py-2 text-sm text-blue-300 hover:bg-blue-600/30">Mevcut Konumumu Al</button>
                         </div>
                         <div>
