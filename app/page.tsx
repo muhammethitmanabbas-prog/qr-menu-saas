@@ -15,9 +15,9 @@ type Tab = 'dashboard' | 'ayarlar' | 'kategoriler' | 'urunler' | 'siparisler' | 
 type Role = 'owner' | 'admin' | 'mudur' | 'kasa' | 'personel';
 type Notification = { type: 'success' | 'error'; text: string } | null;
 
-interface Restoran { id: string; user_id: string; ad: string; slug: string; logo_url?: string | null; tema?: string; siparis_pin?: string | null }
+interface Restoran { id: string; user_id: string; ad: string; slug: string; logo_url?: string | null; tema?: string; siparis_pin?: string | null; google_maps_url?: string | null; personel_sifre?: string | null; gps_aktif?: boolean; enlem?: number | null; boylam?: number | null; gps_yaricap?: number; }
 interface Kategori { id: string; restoran_id: string; ad: string; ad_ar?: string | null }
-interface Urun { id: string; kategori_id: string; ad: string; fiyat: number; aciklama: string | null; resim_url: string | null; stok?: number | null; ad_en?: string | null; aciklama_en?: string | null; ad_ar?: string | null; aciklama_ar?: string | null }
+interface Urun { id: string; kategori_id: string; ad: string; fiyat: number; aciklama: string | null; resim_url: string | null; stok?: number | null; ad_en?: string | null; aciklama_en?: string | null; ad_ar?: string | null; aciklama_ar?: string | null; onerilen_urun_id?: string | null }
 interface Personel { id: string; user_id: string; restoran_id: string; rol: string; ad?: string; email?: string }
 
 // ─── TAB CONFIG ─────────────────────────────────────────────────────────────
@@ -102,8 +102,14 @@ export default function App() {
   const [restoran, setRestoran] = useState<Restoran | null>(null);
   const [restoranAdi, setRestoranAdi] = useState('');
   const [restoranSlug, setRestoranSlug] = useState('');
-  const [seciliTema, setSeciliTema] = useState<string>('dark');
+  const [seciliTema, setSeciliTema] = useState('dark');
   const [siparisPin, setSiparisPin] = useState('');
+  const [googleMapsUrl, setGoogleMapsUrl] = useState('');
+  const [personelSifre, setPersonelSifre] = useState('');
+  const [gpsAktif, setGpsAktif] = useState(false);
+  const [enlem, setEnlem] = useState<number | null>(null);
+  const [boylam, setBoylam] = useState<number | null>(null);
+  const [gpsYaricap, setGpsYaricap] = useState(100);
   const [savingRestoran, setSavingRestoran] = useState(false);
   const [sesAcik, setSesAcik] = useState(true);
 
@@ -116,7 +122,7 @@ export default function App() {
   // Ürün state
   const [urunler, setUrunler] = useState<Urun[]>([]);
   const [seciliKategoriId, setSeciliKategoriId] = useState('');
-  const [yeniUrun, setYeniUrun] = useState({ ad: '', fiyat: '', aciklama: '', resim_url: '', stok: '', ad_en: '', aciklama_en: '', ad_ar: '', aciklama_ar: '' });
+  const [yeniUrun, setYeniUrun] = useState({ ad: '', fiyat: '', aciklama: '', resim_url: '', stok: '', ad_en: '', aciklama_en: '', ad_ar: '', aciklama_ar: '', onerilen_urun_id: '' });
   const [urunEkleniyor, setUrunEkleniyor] = useState(false);
 
   // Personel state
@@ -191,6 +197,12 @@ export default function App() {
         setRestoranSlug(r.slug);
         setSeciliTema(r.tema || 'dark');
         setSiparisPin(r.siparis_pin || '');
+        setGoogleMapsUrl(r.google_maps_url || '');
+        setPersonelSifre(r.personel_sifre || '');
+        setGpsAktif(r.gps_aktif || false);
+        setEnlem(r.enlem || null);
+        setBoylam(r.boylam || null);
+        setGpsYaricap(r.gps_yaricap || 100);
 
         const { data: katData } = await supabase.from('kategoriler').select('*').eq('restoran_id', r.id).order('ad');
         if (katData) {
@@ -246,13 +258,19 @@ export default function App() {
     if (!userId) return;
     setSavingRestoran(true);
     try {
+      const payload = {
+        ad: restoranAdi, slug: restoranSlug, tema: seciliTema, siparis_pin: siparisPin || null,
+        google_maps_url: googleMapsUrl || null, personel_sifre: personelSifre || null,
+        gps_aktif: gpsAktif, enlem: enlem, boylam: boylam, gps_yaricap: gpsYaricap
+      };
+
       if (restoran) {
-        const { error } = await supabase.from('restoranlar').update({ ad: restoranAdi, slug: restoranSlug, tema: seciliTema, siparis_pin: siparisPin || null }).eq('id', restoran.id);
+        const { error } = await supabase.from('restoranlar').update(payload).eq('id', restoran.id);
         if (error) throw error;
-        setRestoran({ ...restoran, ad: restoranAdi, slug: restoranSlug, tema: seciliTema, siparis_pin: siparisPin || null });
+        setRestoran({ ...restoran, ...payload });
         showNotification('success', 'Restoran bilgileri güncellendi.');
       } else {
-        const { data, error } = await supabase.from('restoranlar').insert({ user_id: userId, ad: restoranAdi, slug: restoranSlug, tema: seciliTema, siparis_pin: siparisPin || null }).select().single();
+        const { data, error } = await supabase.from('restoranlar').insert({ user_id: userId, ...payload }).select().single();
         if (error) throw error;
         setRestoran(data as Restoran);
         showNotification('success', 'Restoran oluşturuldu.');
@@ -303,10 +321,11 @@ export default function App() {
         aciklama_en: yeniUrun.aciklama_en.trim() || null,
         ad_ar: yeniUrun.ad_ar.trim() || null,
         aciklama_ar: yeniUrun.aciklama_ar.trim() || null,
+        onerilen_urun_id: yeniUrun.onerilen_urun_id || null,
       }).select().single();
       if (error) throw error;
       setUrunler((prev) => [...prev, data as Urun]);
-      setYeniUrun({ ad: '', fiyat: '', aciklama: '', resim_url: '', stok: '', ad_en: '', aciklama_en: '', ad_ar: '', aciklama_ar: '' });
+      setYeniUrun({ ad: '', fiyat: '', aciklama: '', resim_url: '', stok: '', ad_en: '', aciklama_en: '', ad_ar: '', aciklama_ar: '', onerilen_urun_id: '' });
       showNotification('success', 'Ürün eklendi.');
     } catch (err: any) { showNotification('error', err.message); }
     finally { setUrunEkleniyor(false); }
@@ -517,6 +536,52 @@ export default function App() {
                       placeholder="Boş bırakırsanız PIN sorulmaz (Örn: 1453)" className="w-full rounded-xl border border-white/10 bg-neutral-950 px-4 py-3 text-sm text-white placeholder-neutral-600 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20" />
                   </div>
                   <div>
+                    <label className="mb-1.5 block text-sm font-medium text-neutral-300">Personel Paneli Şifresi <span className="text-neutral-500 text-xs">(Garsonların kendi cihazından girmesi için)</span></label>
+                    <input type="text" value={personelSifre} onChange={(e) => setPersonelSifre(e.target.value)}
+                      placeholder="Örn: gs123" className="w-full rounded-xl border border-white/10 bg-neutral-950 px-4 py-3 text-sm text-white placeholder-neutral-600 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20" />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium text-neutral-300">Google Haritalar İşletme Linki <span className="text-neutral-500 text-xs">(4-5 yıldız veren müşteriler buraya yönlendirilir)</span></label>
+                    <input type="url" value={googleMapsUrl} onChange={(e) => setGoogleMapsUrl(e.target.value)}
+                      placeholder="https://g.page/r/..." className="w-full rounded-xl border border-white/10 bg-neutral-950 px-4 py-3 text-sm text-white placeholder-neutral-600 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20" />
+                  </div>
+                  
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-4 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-sm font-medium text-white">Akıllı GPS Konum Koruması</h3>
+                        <p className="text-xs text-neutral-400 mt-1">Müşteriler sadece restorandayken sipariş verebilir.</p>
+                      </div>
+                      <label className="relative inline-flex cursor-pointer items-center">
+                        <input type="checkbox" checked={gpsAktif} onChange={(e) => setGpsAktif(e.target.checked)} className="peer sr-only" />
+                        <div className="h-6 w-11 rounded-full bg-neutral-700 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-emerald-500 peer-checked:after:translate-x-full peer-checked:after:border-white"></div>
+                      </label>
+                    </div>
+                    {gpsAktif && (
+                      <div className="space-y-4 pt-4 border-t border-white/10">
+                        <div className="flex flex-col sm:flex-row gap-4 items-end">
+                          <div className="flex-1">
+                            <label className="mb-1.5 block text-xs font-medium text-neutral-300">Restoran Enlem (Latitude)</label>
+                            <input type="number" step="any" value={enlem || ''} onChange={(e) => setEnlem(parseFloat(e.target.value))} className="w-full rounded-lg border border-white/10 bg-neutral-950 px-3 py-2 text-sm text-white" />
+                          </div>
+                          <div className="flex-1">
+                            <label className="mb-1.5 block text-xs font-medium text-neutral-300">Restoran Boylam (Longitude)</label>
+                            <input type="number" step="any" value={boylam || ''} onChange={(e) => setBoylam(parseFloat(e.target.value))} className="w-full rounded-lg border border-white/10 bg-neutral-950 px-3 py-2 text-sm text-white" />
+                          </div>
+                          <button type="button" onClick={() => {
+                            if (!navigator.geolocation) { alert('Tarayıcınız konumu desteklemiyor.'); return; }
+                            navigator.geolocation.getCurrentPosition((pos) => { setEnlem(pos.coords.latitude); setBoylam(pos.coords.longitude); alert('Konum alındı!'); }, () => alert('Konum izni reddedildi.'));
+                          }} className="rounded-lg bg-blue-600/20 border border-blue-500/30 px-4 py-2 text-sm text-blue-300 hover:bg-blue-600/30">Mevcut Konumumu Al</button>
+                        </div>
+                        <div>
+                          <label className="mb-1.5 block text-xs font-medium text-neutral-300">İzin Verilen Maksimum Çap (Metre)</label>
+                          <input type="number" value={gpsYaricap} onChange={(e) => setGpsYaricap(parseInt(e.target.value))} className="w-full rounded-lg border border-white/10 bg-neutral-950 px-3 py-2 text-sm text-white" />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
                     <label className="mb-1.5 block text-sm font-medium text-neutral-300">Müşteri Menüsü Teması</label>
                     <div className="grid grid-cols-2 gap-3">
                       {[
@@ -645,6 +710,17 @@ export default function App() {
                         <input type="text" value={yeniUrun.resim_url} onChange={(e) => setYeniUrun({ ...yeniUrun, resim_url: e.target.value })} placeholder="https://..."
                           className="w-full rounded-xl border border-white/10 bg-neutral-950 px-4 py-3 text-sm text-white placeholder-neutral-600 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20" />
                       </div>
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-sm font-medium text-neutral-300">Önerilen Ürün (Çapraz Satış) <span className="text-neutral-600">(opsiyonel)</span></label>
+                      <select value={yeniUrun.onerilen_urun_id} onChange={(e) => setYeniUrun({ ...yeniUrun, onerilen_urun_id: e.target.value })}
+                        className="w-full rounded-xl border border-white/10 bg-neutral-950 px-4 py-3 text-sm text-white outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20">
+                        <option value="">-- Önerilen Ürün Seçin --</option>
+                        {urunler.map(u => (
+                          <option key={u.id} value={u.id}>{u.ad} (₺{u.fiyat})</option>
+                        ))}
+                      </select>
+                      <p className="mt-1 text-xs text-neutral-500">Müşteri bu ürünü sepete eklerken seçtiğiniz bu ürünü de almak isteyip istemediği sorulur.</p>
                     </div>
                     <button type="submit" disabled={urunEkleniyor}
                       className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-400 to-emerald-600 py-3 text-sm font-semibold text-neutral-950 shadow-lg shadow-emerald-500/30 hover:brightness-110 disabled:opacity-50">

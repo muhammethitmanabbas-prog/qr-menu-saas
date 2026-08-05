@@ -32,6 +32,7 @@ interface Urun {
   resim_url: string | null;
   kategori_id: string;
   stok?: number | null;
+  onerilen_urun_id?: string | null;
 }
 
 interface Kategori {
@@ -71,6 +72,10 @@ export default function MusteriMenuPage({ params }: { params: Promise<{ slug: st
   const [pinModalAcik, setPinModalAcik] = useState(false);
   const [girilenPin, setGirilenPin] = useState('');
   const [hedefIslem, setHedefIslem] = useState<'siparis' | 'garson' | null>(null);
+
+  const [upsellModalAcik, setUpsellModalAcik] = useState(false);
+  const [upsellHedefUrun, setUpsellHedefUrun] = useState<Urun | null>(null);
+  const [upsellAnaUrun, setUpsellAnaUrun] = useState<Urun | null>(null);
 
   useEffect(() => {
     if (typeof navigator !== 'undefined') {
@@ -125,6 +130,48 @@ export default function MusteriMenuPage({ params }: { params: Promise<{ slug: st
 
   const t = (tr: string, en: string, ar: string) => lang === 'ar' ? ar : lang === 'en' ? en : tr;
 
+  const haversine = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371e3;
+    const p1 = lat1 * Math.PI/180;
+    const p2 = lat2 * Math.PI/180;
+    const dp = (lat2-lat1) * Math.PI/180;
+    const dl = (lon2-lon1) * Math.PI/180;
+    const a = Math.sin(dp/2) * Math.sin(dp/2) + Math.cos(p1) * Math.cos(p2) * Math.sin(dl/2) * Math.sin(dl/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+  };
+
+  const fallbackPin = (islem: 'siparis' | 'garson', currentMasa?: string) => {
+    if (!restoran?.siparis_pin) {
+      if (islem === 'siparis') gercekSiparisVer();
+      if (islem === 'garson') gercekGarsonCagir(currentMasa || masaNo.trim());
+      return;
+    }
+    setHedefIslem(islem);
+    setPinModalAcik(true);
+  };
+
+  const checkSecurity = (islem: 'siparis' | 'garson', currentMasa?: string) => {
+    if (restoran?.gps_aktif && restoran.enlem && restoran.boylam) {
+      if (!navigator.geolocation) { fallbackPin(islem, currentMasa); return; }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const dist = haversine(pos.coords.latitude, pos.coords.longitude, restoran.enlem, restoran.boylam);
+          if (dist <= (restoran.gps_yaricap || 100)) {
+            if (islem === 'siparis') gercekSiparisVer();
+            if (islem === 'garson') gercekGarsonCagir(currentMasa || masaNo.trim());
+          } else {
+            fallbackPin(islem, currentMasa);
+          }
+        },
+        () => fallbackPin(islem, currentMasa),
+        { enableHighAccuracy: true, timeout: 5000 }
+      );
+    } else {
+      fallbackPin(islem, currentMasa);
+    }
+  };
+
   const garsonCagir = async () => {
     if (waiterCooldown) return;
     
@@ -136,12 +183,7 @@ export default function MusteriMenuPage({ params }: { params: Promise<{ slug: st
       setMasaNo(currentMasa); // Sepet için de kaydet
     }
 
-    if (restoran?.siparis_pin) {
-      setHedefIslem('garson');
-      setPinModalAcik(true);
-      return;
-    }
-    await gercekGarsonCagir(currentMasa);
+    checkSecurity('garson', currentMasa);
   };
 
   const gercekGarsonCagir = async (currentMasa: string) => {
@@ -164,13 +206,42 @@ export default function MusteriMenuPage({ params }: { params: Promise<{ slug: st
     }
   };
 
-  const sepeteTekle = (urun: Urun) => {
+  const sepeteEkleIslemi = (urun: Urun) => {
     if (urun.stok === 0) return;
     setSepet((prev) => {
       const var_ = prev.find((i) => i.id === urun.id);
       if (var_) return prev.map((i) => (i.id === urun.id ? { ...i, adet: i.adet + 1 } : i));
       return [...prev, { ...urun, adet: 1 }];
     });
+  };
+
+  const sepeteTekle = (urun: Urun) => {
+    const var_ = sepet.find((i) => i.id === urun.id);
+    if (!var_ && urun.onerilen_urun_id) {
+      const onerilen = urunler.find(u => u.id === urun.onerilen_urun_id);
+      if (onerilen) {
+        setUpsellAnaUrun(urun);
+        setUpsellHedefUrun(onerilen);
+        setUpsellModalAcik(true);
+        return;
+      }
+    }
+    sepeteEkleIslemi(urun);
+  };
+
+  const handleUpsellAccept = () => {
+    if (upsellAnaUrun) sepeteEkleIslemi(upsellAnaUrun);
+    if (upsellHedefUrun) sepeteEkleIslemi(upsellHedefUrun);
+    setUpsellModalAcik(false);
+    setUpsellAnaUrun(null);
+    setUpsellHedefUrun(null);
+  };
+
+  const handleUpsellReject = () => {
+    if (upsellAnaUrun) sepeteEkleIslemi(upsellAnaUrun);
+    setUpsellModalAcik(false);
+    setUpsellAnaUrun(null);
+    setUpsellHedefUrun(null);
   };
 
   const sepettenCikar = (urunId: string) => {
@@ -193,12 +264,7 @@ export default function MusteriMenuPage({ params }: { params: Promise<{ slug: st
     }
     if (sepet.length === 0) return;
 
-    if (restoran?.siparis_pin) {
-      setHedefIslem('siparis');
-      setPinModalAcik(true);
-      return;
-    }
-    await gercekSiparisVer();
+    checkSecurity('siparis');
   };
 
   const gercekSiparisVer = async () => {
@@ -330,7 +396,7 @@ export default function MusteriMenuPage({ params }: { params: Promise<{ slug: st
   }
 
   if (sayfa === 'onay') {
-    return <SiparisTakip siparisId={siparisId} masaNo={masaNo} lang={lang} t={t} onYeniSiparis={() => { setSayfa('menu'); setSiparisDurumu(null); }} restoranAd={restoran?.ad || ''} restoranId={restoran.id} th={th} />;
+    return <SiparisTakip siparisId={siparisId} masaNo={masaNo} lang={lang} t={t} onYeniSiparis={() => { setSayfa('menu'); setSepet([]); setSiparisId(null); setMasaNo(''); setSiparisDurumu(null); }} restoranAd={restoran?.ad || ''} restoranId={restoran.id} th={th} restoran={restoran} />;
   }
 
   if (sayfa === 'sepet') {
@@ -482,6 +548,27 @@ export default function MusteriMenuPage({ params }: { params: Promise<{ slug: st
         </div>
       </div>
 
+      {upsellModalAcik && upsellHedefUrun && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm sm:items-center p-4">
+          <div className={`w-full max-w-sm rounded-2xl ${th.card} border ${th.border} p-6 space-y-5 animate-in slide-in-from-bottom-10 sm:slide-in-from-bottom-0 sm:zoom-in-95`} dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+            <div className="flex flex-col items-center text-center">
+              {upsellHedefUrun.resim_url && <img src={upsellHedefUrun.resim_url} alt="" className="w-24 h-24 rounded-full object-cover shadow-lg border-2 border-emerald-500/30 mb-4" />}
+              <h2 className={`text-xl font-bold ${th.accentText}`}>{t('Bunu da ister misiniz?', 'Would you also like this?', 'هل ترغب في هذا أيضاً؟')}</h2>
+              <p className={`text-base font-semibold ${th.text} mt-2`}>{lang === 'ar' ? (upsellHedefUrun.ad_ar || upsellHedefUrun.ad) : lang === 'en' ? (upsellHedefUrun.ad_en || upsellHedefUrun.ad) : upsellHedefUrun.ad}</p>
+              <p className={`text-lg font-black text-emerald-500 mt-1`}>+₺{upsellHedefUrun.fiyat}</p>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={handleUpsellReject} className={`flex-1 rounded-xl py-3 font-semibold ${th.textMuted} bg-black/10 hover:bg-black/20 transition-colors`}>
+                {t('Hayır, Teşekkürler', 'No, Thanks', 'لا، شكراً')}
+              </button>
+              <button onClick={handleUpsellAccept} className={`flex-1 rounded-xl py-3 font-semibold ${th.accentBtn} shadow-lg shadow-emerald-500/30 hover:brightness-110 transition-all`}>
+                {t('Sepete Ekle', 'Add to Cart', 'أضف للسلة')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {pinModalAcik && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className={`w-full max-w-sm rounded-2xl ${th.card} border ${th.border} p-6 text-center space-y-4`} dir={lang === 'ar' ? 'rtl' : 'ltr'}>
@@ -621,7 +708,7 @@ export default function MusteriMenuPage({ params }: { params: Promise<{ slug: st
   );
 }
 
-function SiparisTakip({ siparisId, masaNo, lang, t, onYeniSiparis, restoranAd, restoranId, th }: {
+function SiparisTakip({ siparisId, masaNo, lang, t, onYeniSiparis, restoranAd, restoranId, th, restoran }: {
   siparisId: string | null;
   masaNo: string;
   lang: string;
@@ -630,6 +717,7 @@ function SiparisTakip({ siparisId, masaNo, lang, t, onYeniSiparis, restoranAd, r
   restoranAd: string;
   restoranId: string;
   th: any;
+  restoran: any;
 }) {
   const [durum, setDurum] = useState('bekleniyor');
   const [puanlandi, setPuanlandi] = useState(false);
@@ -773,7 +861,12 @@ function SiparisTakip({ siparisId, masaNo, lang, t, onYeniSiparis, restoranAd, r
 
         {yorumGonderildi && (
           <div className={`mt-8 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-5 text-center`}>
-            <p className="text-emerald-500 font-bold">{t('Değerlendirmeniz için teşekkürler!', 'Thank you for your rating!', 'شكراً لتقييمك!')}</p>
+            <p className="text-emerald-500 font-bold mb-3">{t('Değerlendirmeniz için teşekkürler!', 'Thank you for your rating!', 'شكراً لتقييمك!')}</p>
+            {puan >= 4 && restoran?.google_maps_url && (
+              <a href={restoran.google_maps_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2 text-sm font-bold text-white hover:bg-blue-700 transition-colors">
+                {t('Bizi Google\'da Değerlendirin', 'Rate us on Google', 'قيمنا على جوجل')}
+              </a>
+            )}
           </div>
         )}
 
